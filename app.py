@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Header, HTTPException
 from detector import is_scam
 from llm_analyzer import generate_reply, llm_analyze_message
+from callback import send_callback  # ✅ import callback function
 
 app = FastAPI()
 
@@ -20,7 +21,7 @@ def honeypot(payload: dict, x_api_key: str = Header(...)):
     # Generate agentic reply via Gemini
     reply = generate_reply(message_text)
 
-    # Build response
+    # Build response to return
     response = {
         "status": "success",
         "reply": reply,
@@ -33,5 +34,15 @@ def honeypot(payload: dict, x_api_key: str = Header(...)):
             "suspiciousKeywords": intel.suspiciousKeywords
         }
     }
+
+    # ✅ Call GUVI callback after processing
+    callback_payload = {
+        "sessionId": payload.get("sessionId", "unknown-session"),
+        "scamDetected": scam_detected,
+        "totalMessagesExchanged": len(payload.get("conversationHistory", [])) + 1,
+        "extractedIntelligence": response["extractedIntelligence"],
+        "agentNotes": "Agent engaged scammer via LLM."
+    }
+    send_callback(callback_payload)  # <-- this will now send data to GUVI
 
     return response
